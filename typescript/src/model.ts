@@ -54,7 +54,13 @@ export interface TypeChatLanguageModel {
  * If none of these key variables are defined, an exception is thrown.
  * @returns An instance of `TypeChatLanguageModel`.
  */
-export function createLanguageModel(env: Record<string, string | undefined>): TypeChatLanguageModel {
+export function createLanguageModel(env: Record<string, string | undefined>, requestBody: object): TypeChatLanguageModel {
+    if (env.CONNECTOR_API_KEY) {
+        const apiKey = env.CONNECTOR_API_KEY ?? missingEnvironmentVariable("CONNECTOR_API_KEY");
+        const body = requestBody ?? {};
+        const endPoint = env.CONNECTOR_ENDPOINT ?? missingEnvironmentVariable("CONNECTOR_ENDPOINT");
+        return createFetchLanguageModel(endPoint, { "x-api-key": apiKey }, body);
+    }
     if (env.OPENAI_API_KEY) {
         const apiKey = env.OPENAI_API_KEY ?? missingEnvironmentVariable("OPENAI_API_KEY");
         const model = env.OPENAI_MODEL ?? missingEnvironmentVariable("OPENAI_MODEL");
