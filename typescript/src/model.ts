@@ -36,7 +36,7 @@ export interface TypeChatLanguageModel {
      * @param prompt A prompt string or an array of prompt sections. If a string is specified,
      *   it is converted into a single "user" role prompt section.
      */
-    complete(prompt: string | PromptSection[]): Promise<Result<string>>;
+    complete(prompt: string | PromptSection[], meta: object): Promise<Result<string>>;
 }
 
 /**
@@ -59,7 +59,7 @@ export function createLanguageModel(env: Record<string, string | undefined>, req
         const apiKey = env.CONNECTOR_API_KEY ?? missingEnvironmentVariable("CONNECTOR_API_KEY");
         const body = requestBody ?? {};
         const endPoint = env.CONNECTOR_ENDPOINT ?? missingEnvironmentVariable("CONNECTOR_ENDPOINT");
-        return createFetchLanguageModel(endPoint, { "x-api-key": apiKey }, body);
+        return createCustomLanguageModel(endPoint, { "x-api-key": apiKey }, body);
     }
     if (env.OPENAI_API_KEY) {
         const apiKey = env.OPENAI_API_KEY ?? missingEnvironmentVariable("OPENAI_API_KEY");
@@ -142,6 +142,64 @@ function createFetchLanguageModel(url: string, headers: object, defaultParams: o
             if (response.ok) {
                 const json = await response.json() as { choices: { message: PromptSection }[] };
                 return success(json.choices[0].message.content ?? "");
+            }
+            if (!isTransientHttpError(response.status) || retryCount >= retryMaxAttempts) {
+                return error(`REST API error ${response.status}: ${response.statusText}`);
+            }
+            await sleep(retryPauseMs);
+            retryCount++;
+        }
+    }
+}
+
+/**
+ * Custom endpoint encapsulation using the fetch API.
+ */
+function createCustomLanguageModel(url: string, headers: object, defaultParams: object) {
+    const model: TypeChatLanguageModel = {
+        complete
+    };
+    return model;
+
+    async function complete(prompt: string | PromptSection[], meta: object) {
+        let retryCount = 0;
+        const retryMaxAttempts = model.retryMaxAttempts ?? 3;
+        const retryPauseMs = model.retryPauseMs ?? 1000;
+        let processedPrompt: string;
+        if (typeof prompt === 'string') {
+            processedPrompt = prompt;
+        } else if (Array.isArray(prompt) && prompt.length > 0) {
+            processedPrompt = prompt[0].content; 
+        } else {
+            // Handle the case where prompt is an empty array or does not have the expected structure
+            throw new Error('Invalid prompt type or structure.');
+        }
+        while (true) {
+            const requestBody = {
+                query: {
+                    model: (defaultParams as { model?: string }).model,
+                    max_tokens_to_sample: (defaultParams as { max_tokens_to_sample?: number }).max_tokens_to_sample,
+                    temperature: (defaultParams as { temperature?: number }).temperature,
+                    prompt: processedPrompt
+                },
+                user_id: (meta as { user_id?: string }).user_id,
+                client_id: (defaultParams as { client_id?: string }).client_id,
+                conversation_id: (meta as { conversation_id?: string }).conversation_id,
+                platform: (defaultParams as { platform?: string }).platform,
+                genAiProvider: (defaultParams as { genAiProvider?: string }).genAiProvider,
+            };
+            const options = {
+                method: "POST",
+                body: JSON.stringify(requestBody),
+                headers: {
+                    "content-type": "application/json",
+                    ...headers
+                }
+            }
+            const response = await fetch(url, options);
+            if (response.ok) {
+                const json = await response.json() as { result: { text: string, request_tokens: number, response_tokens: number } };
+                return success(json.result.text ?? "");
             }
             if (!isTransientHttpError(response.status) || retryCount >= retryMaxAttempts) {
                 return error(`REST API error ${response.status}: ${response.statusText}`);

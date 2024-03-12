@@ -60,7 +60,7 @@ export interface TypeChatJsonTranslator<T extends object> {
      *   prompt. If a string is specified, it is converted into a single "user" role prompt section.
      * @returns A promise for the resulting object.
      */
-    translate(request: string, promptPreamble?: string | PromptSection[]): Promise<Result<T>>;
+    translate(request: { userQuery: string, parameters: object}, promptPreamble?: string | PromptSection[]): Promise<Result<T>>;
 }
 
 /**
@@ -121,12 +121,12 @@ export function createJsonTranslator<T extends object>(model: TypeChatLanguageMo
             `The following is a revised JSON object:\n`;
     }
 
-    async function translate(request: string, promptPreamble?: string | PromptSection[]) {
+    async function translate(request: { userQuery: string, parameters: object}, promptPreamble?: string | PromptSection[]) {
         const preamble: PromptSection[] = typeof promptPreamble === "string" ? [{ role: "user", content: promptPreamble }] : promptPreamble ?? [];
-        let prompt: PromptSection[] = [...preamble, { role: "user", content: typeChat.createRequestPrompt(request) }];
+        let prompt: PromptSection[] = [...preamble, { role: "user", content: typeChat.createRequestPrompt(request.userQuery) }];
         let attemptRepair = typeChat.attemptRepair;
         while (true) {
-            const response = await model.complete(prompt);
+            const response = await model.complete(prompt, request.parameters);
             if (!response.success) {
                 return response;
             }
