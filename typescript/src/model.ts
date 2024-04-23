@@ -169,7 +169,8 @@ function createCustomLanguageModel(url: string, headers: object, defaultParams: 
         if (typeof prompt === 'string') {
             processedPrompt = prompt;
         } else if (Array.isArray(prompt) && prompt.length > 0) {
-            processedPrompt = prompt[0].content; 
+            // loop over the prompt sections and concatenate the content of each section
+            processedPrompt = prompt.map((section) => `${section.role}: ${section.content}`).join('\n');
         } else {
             // Handle the case where prompt is an empty array or does not have the expected structure
             throw new Error('Invalid prompt type or structure.');
