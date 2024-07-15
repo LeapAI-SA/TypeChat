@@ -57,9 +57,10 @@ export interface TypeChatLanguageModel {
 export function createLanguageModel(env: Record<string, string | undefined>, requestBody: object = {}): TypeChatLanguageModel {
     if (env.CONNECTOR_API_KEY) {
         const apiKey = env.CONNECTOR_API_KEY ?? missingEnvironmentVariable("CONNECTOR_API_KEY");
+        const username = env.CONNECTOR_USERNAME ?? missingEnvironmentVariable("CONNECTOR_USERNAME");
         const body = requestBody ?? {};
         const endPoint = env.CONNECTOR_ENDPOINT ?? missingEnvironmentVariable("CONNECTOR_ENDPOINT");
-        return createCustomLanguageModel(endPoint, { "x-api-key": apiKey }, body);
+        return createCustomLanguageModel(endPoint, { "x-api-key": apiKey, "username": username }, body);
     }
     if (env.OPENAI_API_KEY) {
         const apiKey = env.OPENAI_API_KEY ?? missingEnvironmentVariable("OPENAI_API_KEY");
